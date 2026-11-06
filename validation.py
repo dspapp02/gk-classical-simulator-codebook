@@ -1,4 +1,5 @@
 from itertools import combinations
+from dictionaries import pauli_prod_dict
 
 def _commutation_1qubit(pauli1, pauli2):
     comm_string = pauli1+pauli2
@@ -16,10 +17,12 @@ def _commutation(stab1, stab2):
     return parity
 
 def _validate_stabiliser_set(n_qubits, stabiliser_set):
-    """e.g. [(1,"IXIIX"),(1j,"IXZZX")]"""
+    """Note, performs all tests, except confirming whether the negative inverse appears in the stabiliser group. 
+    e.g. [(1,"IXIIX"),(1j,"IXZZX")]"""
+
     # make sure all strings only contain pauli operators
-    pauli_set = set(["I","X","Y","Z"])
-    phase_set = set([1,-1])
+    pauli_set = {"I","X","Y","Z"}
+    phase_set = {1,-1}
 
     for stab in stabiliser_set:
         if stab[0] not in phase_set:
@@ -38,33 +41,31 @@ def _validate_stabiliser_set(n_qubits, stabiliser_set):
     for pair in pairs:
         if _commutation(*pair) == -1:
             raise ValueError("Elements of the stabiliser group do not mutually commute.")
-
-    # validate "I" does not appear in the multiplicative set
-    # requires gaussian elimination, n^3
     return True
 
 def _validate_operator(n_qubits, operator):
-    phase_set = set([1,-1,1j,-1j])
-    operator_set = set(["I","X","Y","Z","H","S"])
+    phase_set = {1,-1,1j,-1j}
+    operator_set = {"I","X","Y","Z","H","S"}
 
     # check for valid phase
     if operator[0] not in phase_set:
-        raise ValueError("Stabiliser phases contain non-valid elements. Phases must contain 1, -1, 1j, -1j.")
+        raise ValueError("Stabiliser phases contain non-valid elements. Phases must be 1, -1, 1j, -1j.")
 
     # if operator is cnot type operator
     if operator[1].startswith("CNOT"):
         format_op = operator[1].removeprefix("CNOT_")
         control = format_op.find("C")
         target = format_op.find("T")
-        # validate length without prefix
-        if len(format_op)!=n_qubits:
-            raise ValueError(f"Operator must act on the same number of qubits as the register, {n_qubits}.")
 
         # if control or target cannot be found raise error
         if control == -1:
             raise ValueError("Unable to identify control qubit in CNOT operator")
         elif target == -1:
             raise ValueError("Unable to identify target qubit in CNOT operator")
+        
+        # validate register length without prefix
+        if len(format_op)!=n_qubits:
+            raise ValueError(f"Operator must act on the same number of qubits as the register, {n_qubits}.")
 
         # build the remaining string, without the control or target entries. This should be purely identities.
         remainder = ""
@@ -85,5 +86,35 @@ def _validate_operator(n_qubits, operator):
                 raise ValueError(["Operators must be Cliffords, with strings containing 'I','X','Y','Z','H' or 'S' only."])
 
 
-def _validate_basis(basis):
-    pass
+def _validate_observable(n_qubits, observable):
+    pauli_set = {"I", "X", "Y", "Z"}
+    phase_set = {1, -1}
+
+    # Check observable structure.
+    if not isinstance(observable, (tuple, list)) or len(observable) != 2:
+        raise ValueError("Observable must contain a phase and a Pauli string.")
+
+    # Check phase: observables must be Hermitian.
+    if observable[0] not in phase_set:
+        raise ValueError("Observable phase must be 1 or -1.")
+
+    # Check Pauli string.
+    if not isinstance(observable[1], str):
+        raise ValueError("Observable operators must be given as a string.")
+
+    for pauli in observable[1]:
+        if pauli not in pauli_set:
+            raise ValueError(
+                "Observable must contain only 'I', 'X', 'Y' or 'Z'."
+            )
+
+    # Check register length.
+    if len(observable[1]) != n_qubits:
+        raise ValueError(
+            f"Observable must act on the same number of qubits "
+            f"as the register, {n_qubits}."
+        )
+
+    return True
+
+
